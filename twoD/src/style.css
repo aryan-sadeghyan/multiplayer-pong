@@ -1,0 +1,40 @@
+@font-face {
+  font-family: "Lexend Mega";
+  src: url("../Lexend_Mega/static/LexendMega-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Lexend Mega";
+  src: url("../Lexend_Mega/static/LexendMega-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Lexend Mega";
+  src: url("../Lexend_Mega/static/LexendMega-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+}
+
+body {
+  background-color: #252423;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: "Lexend Mega", sans-serif;
+}
+
+canvas {
+  font-family: "Lexend Mega", sans-serif;
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
