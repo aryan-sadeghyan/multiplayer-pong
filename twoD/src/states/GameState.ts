@@ -14,6 +14,7 @@ export interface GameDI {
   playState: GameState;
   pauseState: GameState;
   gameOverState: GameState;
+  lobbyState: GameState;
 
   // Methods
   changeState(newState: GameState): void;
@@ -27,7 +28,7 @@ export interface GameState {
   // Called when exiting the state - should stop the state's animation loop
   exit(gameDI?: GameDI): void;
 
-  // Update game logic for this state
+  // Update game logic for this stat
   update(...args: any[]): void;
 
   // Render method with multiple possible signatures

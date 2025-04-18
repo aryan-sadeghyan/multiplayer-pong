@@ -11,7 +11,7 @@ export class MenuState implements GameState {
 
   private menuOptions = [
     { text: "play VS ai", key: "Space" },
-    { text: "custom multiplayer", key: "2" },
+    { text: "custom multiplayer", key: "W" },
   ];
 
   enter(): void {
@@ -65,6 +65,9 @@ export class MenuState implements GameState {
       if (keyCode === "Space") {
         console.log("Starting game (Space pressed)");
         gameDI.changeState(gameDI.pauseState);
+      } else if (keyCode === "KeyW") {
+        gameDI.changeState(gameDI.lobbyState);
+        console.log("Starting lobby (W pressed)");
       }
     }
   }

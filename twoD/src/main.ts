@@ -6,6 +6,7 @@ import { MenuState } from "./states/MenuState";
 import { PlayState } from "./states/PlayState";
 import { PauseState } from "./states/PauseState";
 import { GameOverState } from "./states/GameOverState";
+import LobbyState from "./states/lobbyState";
 
 // Canvas setup
 export const canvas = document.getElementById("main") as HTMLCanvasElement;
@@ -44,6 +45,7 @@ export class Game implements GameDI {
   playState: PlayState;
   pauseState: PauseState;
   gameOverState: GameOverState;
+  lobbyState: LobbyState;
 
   constructor() {
     // Initialize game objects
@@ -53,11 +55,12 @@ export class Game implements GameDI {
     this.playState = new PlayState();
     this.pauseState = new PauseState();
     this.gameOverState = new GameOverState();
-
+    this.lobbyState = new LobbyState();
     // Set up input handlers
 
     // Set initial state and start it
     this.currentState = this.menuState;
+
     this.currentState.enter(this);
   }
 
@@ -90,24 +93,6 @@ export class Game implements GameDI {
   handleKeyUp(event: KeyboardEvent): void {
     this.pressedKeys.delete(event.code);
     this.currentState.handleInput(this, event.code, false);
-  }
-
-  /**
-   * Helper method to draw walls - used by multiple states
-   */
-  drawWalls(ctx: CanvasRenderingContext2D): void {
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = WALL_THICKNESS;
-
-    ctx.beginPath();
-    ctx.moveTo(0, WALL_THICKNESS / 2);
-    ctx.lineTo(window.innerWidth, WALL_THICKNESS / 2);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(0, window.innerHeight - WALL_THICKNESS / 2);
-    ctx.lineTo(window.innerWidth, window.innerHeight - WALL_THICKNESS / 2);
-    ctx.stroke();
   }
 }
 
