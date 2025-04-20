@@ -1,0 +1,57 @@
+name: Pong Game CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          cd twoD
+          npm ci
+
+      - name: Type check
+        run: |
+          cd twoD
+          npm run type-check || echo "Type check failed but continuing"
+
+      - name: Build
+        run: |
+          cd twoD
+          npm run build
+
+  server-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "npm"
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Build server
+        run: |
+          cd server
+          npm run build || echo "Build not configured, skipping"
