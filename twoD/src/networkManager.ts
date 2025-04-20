@@ -31,14 +31,25 @@ export interface BallData {
   velocityY: number;
 }
 
+export interface RoomInfo {
+  roomId: string;
+  isFirstPlayer: boolean;
+}
+
 export default class NetworkManager {
   private static instance: NetworkManager = new NetworkManager();
   private socket: Socket | null = null;
   private isFirstPlayer: boolean = false;
+  private currentRoomId: string | null = null;
   private onGameState: ((data: GameState) => void) | null = null;
   private onPlayerPositions: ((data: Players) => void) | null = null;
   private onGameStart: ((started: boolean) => void) | null = null;
   private onBallSync: ((data: BallData) => void) | null = null;
+  private onRoomCreated: ((data: RoomInfo) => void) | null = null;
+  private onRoomJoined: ((data: RoomInfo) => void) | null = null;
+  private onAvailableRooms: ((rooms: string[]) => void) | null = null;
+  private onError: ((error: { message: string }) => void) | null = null;
+  private onPlayerDisconnected: (() => void) | null = null;
 
   private constructor() {}
 
@@ -46,12 +57,16 @@ export default class NetworkManager {
     return NetworkManager.instance;
   }
 
-  connect(initialPosition: PlayerPosition): void {
+  connect(): void {
+    if (this.socket) {
+      console.log("Already connected");
+      return;
+    }
+
     this.socket = io("http://localhost:3000");
 
     this.socket.on("connect", () => {
       console.log("Connected to server");
-      this.socket?.emit("join-game", initialPosition);
     });
 
     this.socket.on("game-state", (state: GameState) => {
@@ -83,6 +98,45 @@ export default class NetworkManager {
       }
     });
 
+    this.socket.on("room-created", (data: RoomInfo) => {
+      console.log("Room created:", data);
+      this.currentRoomId = data.roomId;
+      this.isFirstPlayer = data.isFirstPlayer;
+      if (this.onRoomCreated) {
+        this.onRoomCreated(data);
+      }
+    });
+
+    this.socket.on("room-joined", (data: RoomInfo) => {
+      console.log("Room joined:", data);
+      this.currentRoomId = data.roomId;
+      this.isFirstPlayer = data.isFirstPlayer;
+      if (this.onRoomJoined) {
+        this.onRoomJoined(data);
+      }
+    });
+
+    this.socket.on("available-rooms", (rooms: string[]) => {
+      console.log("Available rooms:", rooms);
+      if (this.onAvailableRooms) {
+        this.onAvailableRooms(rooms);
+      }
+    });
+
+    this.socket.on("error", (error: { message: string }) => {
+      console.error("Server error:", error);
+      if (this.onError) {
+        this.onError(error);
+      }
+    });
+
+    this.socket.on("player-disconnected", () => {
+      console.log("Other player disconnected");
+      if (this.onPlayerDisconnected) {
+        this.onPlayerDisconnected();
+      }
+    });
+
     this.socket.on("game-full", () => {
       console.log("Game is full!");
       this.socket?.disconnect();
@@ -93,15 +147,48 @@ export default class NetworkManager {
     });
   }
 
+  createRoom(initialPosition: PlayerPosition): void {
+    if (!this.socket) {
+      console.error("Not connected to server");
+      return;
+    }
+    this.socket.emit("create-room", initialPosition);
+  }
+
+  joinRoom(roomId: string, initialPosition: PlayerPosition): void {
+    if (!this.socket) {
+      console.error("Not connected to server");
+      return;
+    }
+    this.socket.emit("join-room", { roomId, initialPosition });
+  }
+
+  getAvailableRooms(): void {
+    if (!this.socket) {
+      console.error("Not connected to server");
+      return;
+    }
+    this.socket.emit("get-available-rooms");
+  }
+
   sendPlayerMove(y: number): void {
-    this.socket?.emit("player-move", {
+    if (!this.socket) return;
+    this.socket.emit("player-move", {
       isFirstPlayer: this.isFirstPlayer,
       y,
     });
   }
 
   sendBallUpdate(ballData: BallData): void {
-    this.socket?.emit("ball-update", ballData);
+    if (!this.socket) return;
+    this.socket.emit("ball-update", ballData);
+  }
+
+  disconnect(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
   }
 
   setGameStateCallback(callback: (data: GameState) => void): void {
@@ -120,7 +207,31 @@ export default class NetworkManager {
     this.onBallSync = callback;
   }
 
+  setRoomCreatedCallback(callback: (data: RoomInfo) => void): void {
+    this.onRoomCreated = callback;
+  }
+
+  setRoomJoinedCallback(callback: (data: RoomInfo) => void): void {
+    this.onRoomJoined = callback;
+  }
+
+  setAvailableRoomsCallback(callback: (rooms: string[]) => void): void {
+    this.onAvailableRooms = callback;
+  }
+
+  setErrorCallback(callback: (error: { message: string }) => void): void {
+    this.onError = callback;
+  }
+
+  setPlayerDisconnectedCallback(callback: () => void): void {
+    this.onPlayerDisconnected = callback;
+  }
+
   get playerIsFirst(): boolean {
     return this.isFirstPlayer;
+  }
+
+  get roomId(): string | null {
+    return this.currentRoomId;
   }
 }

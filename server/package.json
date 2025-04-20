@@ -17,11 +17,13 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "nodemon": "^3.1.9",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.1",
     "@types/socket.io": "^3.0.2",
+    "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

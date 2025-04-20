@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 const httpServer = createServer(app);
@@ -37,33 +38,50 @@ interface BallData {
   velocityY: number;
 }
 
-let players: PlayerData[] = [];
-let ballData: BallData | null = null;
-let gameStarted = false;
+interface Room {
+  id: string;
+  players: PlayerData[];
+  ballData: BallData | null;
+  gameStarted: boolean;
+}
 
-// Constants for paddle positions
-const PADDLE_WIDTH = 20;
-const WALL_THICKNESS = 6;
-let WINDOW_HEIGHT = 800; // Default height
-let WINDOW_WIDTH = 1024; // Default width
+// Store all active rooms
+let rooms: Map<string, Room> = new Map();
 
-function getFormattedPlayers() {
-  const player1 = players.find((p) => p.isFirstPlayer);
-  const player2 = players.find((p) => !p.isFirstPlayer);
+// Find available rooms (rooms with only one player)
+function getAvailableRooms(): string[] {
+  const availableRooms: string[] = [];
+  rooms.forEach((room, id) => {
+    if (room.players.length === 1) {
+      availableRooms.push(id);
+    }
+  });
+  return availableRooms;
+}
+
+// Get formatted players for a room
+function getFormattedPlayers(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room) return { player1: null, player2: null };
+
+  const player1 = room.players.find((p) => p.isFirstPlayer);
+  const player2 = room.players.find((p) => !p.isFirstPlayer);
   return { player1, player2 };
 }
 
-function startGame() {
-  if (players.length === 2 && !gameStarted) {
-    gameStarted = true;
-    ballData = {
-      x: 0, // These will be set by the first player
-      y: 0,
-      velocityX: 300,
-      velocityY: 300,
-    };
-    io.emit("game-start", { gameStarted: true });
-  }
+// Start a game when both players have joined
+function startGame(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room || room.players.length !== 2 || room.gameStarted) return;
+
+  room.gameStarted = true;
+  room.ballData = {
+    x: 0,
+    y: 0,
+    velocityX: 300,
+    velocityY: 300,
+  };
+  io.to(roomId).emit("game-start", { gameStarted: true });
 }
 
 // Basic Express route
@@ -74,97 +92,183 @@ app.get("/", (req, res) => {
 io.on("connection", (socket: Socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  socket.on("join-game", (initialPosition: { x: number; y: number }) => {
-    // Check if this socket is already a player
-    const existingPlayer = players.find((p) => p.socketId === socket.id);
-    if (existingPlayer) {
-      console.log("Player already in game:", socket.id);
-      return;
-    }
+  // Send list of available rooms
+  socket.on("get-available-rooms", () => {
+    socket.emit("available-rooms", getAvailableRooms());
+  });
 
-    // Check if game is full
-    if (players.length >= 2) {
-      console.log("Game is full, rejecting connection");
-      socket.emit("game-full");
-      return;
-    }
+  // Create a new room
+  socket.on("create-room", (initialPosition: { x: number; y: number }) => {
+    // Create a new room with a unique ID
+    const roomId = uuidv4().substring(0, 6).toUpperCase();
 
-    // Determine if this is the first player
-    const isFirstPlayer = players.length === 0;
-
-    const playerData: PlayerData = {
-      socketId: socket.id,
-      x: initialPosition.x,
-      y: initialPosition.y,
-      isFirstPlayer,
+    const newRoom: Room = {
+      id: roomId,
+      players: [
+        {
+          socketId: socket.id,
+          x: initialPosition.x,
+          y: initialPosition.y,
+          isFirstPlayer: true,
+        },
+      ],
+      ballData: null,
+      gameStarted: false,
     };
 
-    // Store player data
-    players.push(playerData);
-    console.log(`Added player ${socket.id}, isFirst: ${isFirstPlayer}`);
-    console.log("Current players:", players);
+    rooms.set(roomId, newRoom);
 
-    // Send initial game state to the new player
-    socket.emit("game-state", {
-      position: initialPosition,
-      isFirstPlayer,
-      gameStarted,
+    // Join the socket to the room
+    socket.join(roomId);
+
+    // Store room ID in socket data
+    socket.data.roomId = roomId;
+
+    console.log(`Player ${socket.id} created room ${roomId}`);
+
+    // Send room information to the player
+    socket.emit("room-created", {
+      roomId,
+      isFirstPlayer: true,
     });
 
-    // Broadcast current players to everyone
-    const formattedPlayers = getFormattedPlayers();
-    io.emit("player-positions", formattedPlayers);
+    // Send initial game state
+    socket.emit("game-state", {
+      position: initialPosition,
+      isFirstPlayer: true,
+      gameStarted: false,
+    });
 
-    console.log(
-      `Player ${isFirstPlayer ? "ONE" : "TWO"} joined. Position:`,
-      initialPosition
-    );
-    console.log("Total players:", players.length);
-    console.log("Broadcast players state:", formattedPlayers);
-
-    // Check if we should start the game
-    startGame();
+    // Broadcast current players to everyone in the room
+    io.to(roomId).emit("player-positions", getFormattedPlayers(roomId));
   });
 
+  // Join an existing room
+  socket.on(
+    "join-room",
+    (data: { roomId: string; initialPosition: { x: number; y: number } }) => {
+      const { roomId, initialPosition } = data;
+
+      // Check if room exists
+      if (!rooms.has(roomId)) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      const room = rooms.get(roomId)!;
+
+      // Check if room is full
+      if (room.players.length >= 2) {
+        socket.emit("error", { message: "Room is full" });
+        return;
+      }
+
+      // Add player to room
+      room.players.push({
+        socketId: socket.id,
+        x: initialPosition.x,
+        y: initialPosition.y,
+        isFirstPlayer: false,
+      });
+
+      // Join the socket to the room
+      socket.join(roomId);
+
+      // Store room ID in socket data
+      socket.data.roomId = roomId;
+
+      console.log(`Player ${socket.id} joined room ${roomId}`);
+
+      // Send confirmation to the player
+      socket.emit("room-joined", {
+        roomId,
+        isFirstPlayer: false,
+      });
+
+      // Send initial game state
+      socket.emit("game-state", {
+        position: initialPosition,
+        isFirstPlayer: false,
+        gameStarted: false,
+      });
+
+      // Broadcast current players to everyone in the room
+      io.to(roomId).emit("player-positions", getFormattedPlayers(roomId));
+
+      // Start the game now that we have two players
+      startGame(roomId);
+    }
+  );
+
+  // Handle ball updates
   socket.on("ball-update", (data: BallData) => {
-    if (gameStarted) {
-      ballData = data;
-      socket.broadcast.emit("ball-sync", ballData);
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms.has(roomId)) return;
+
+    const room = rooms.get(roomId)!;
+    if (room.gameStarted) {
+      room.ballData = data;
+      // Broadcast to everyone in the room except sender
+      socket.to(roomId).emit("ball-sync", data);
     }
   });
 
+  // Handle player movement
   socket.on("player-move", (data: { isFirstPlayer: boolean; y: number }) => {
-    const player = players.find((p) => p.socketId === socket.id);
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms.has(roomId)) return;
+
+    const room = rooms.get(roomId)!;
+    const player = room.players.find((p) => p.socketId === socket.id);
+
     if (player) {
       player.y = data.y;
-      // Broadcast the updated positions to all players
-      io.emit("player-positions", getFormattedPlayers());
+      // Broadcast updated positions to everyone in the room
+      io.to(roomId).emit("player-positions", getFormattedPlayers(roomId));
     }
   });
 
+  // Handle disconnection
   socket.on("disconnect", () => {
-    const wasPlayer = players.find((p) => p.socketId === socket.id);
-    if (wasPlayer) {
+    const roomId = socket.data.roomId;
+    if (!roomId || !rooms.has(roomId)) return;
+
+    const room = rooms.get(roomId)!;
+
+    // Find the player that disconnected
+    const playerIndex = room.players.findIndex((p) => p.socketId === socket.id);
+    if (playerIndex !== -1) {
+      const wasFirstPlayer = room.players[playerIndex].isFirstPlayer;
       console.log(
-        `Player ${wasPlayer.isFirstPlayer ? "ONE" : "TWO"} disconnected:`,
-        socket.id
+        `Player ${
+          wasFirstPlayer ? "ONE" : "TWO"
+        } disconnected from room ${roomId}`
       );
+
+      // Remove the player
+      room.players.splice(playerIndex, 1);
+
+      // If there are still players in the room, notify them
+      if (room.players.length > 0) {
+        room.gameStarted = false;
+        room.ballData = null;
+
+        // Notify remaining players
+        io.to(roomId).emit("player-positions", getFormattedPlayers(roomId));
+        io.to(roomId).emit("game-start", { gameStarted: false });
+        io.to(roomId).emit("player-disconnected");
+      } else {
+        // If no players left, remove the room
+        rooms.delete(roomId);
+        console.log(`Room ${roomId} removed`);
+      }
     }
-
-    // Remove the disconnected player
-    players = players.filter((p) => p.socketId !== socket.id);
-    console.log("Remaining players:", players.length);
-
-    // Reset game state
-    if (players.length < 2) {
-      gameStarted = false;
-      ballData = null;
-    }
-
-    // Notify remaining players
-    io.emit("player-positions", getFormattedPlayers());
-    io.emit("game-start", { gameStarted: false });
   });
+});
+
+// API endpoint to get list of available rooms
+app.get("/rooms", (req, res) => {
+  res.json(getAvailableRooms());
 });
 
 httpServer.listen(PORT, () => {

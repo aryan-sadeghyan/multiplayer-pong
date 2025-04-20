@@ -16,6 +16,7 @@ export class MultiplayerPlayState implements GameState {
   private gameStarted: boolean = false;
   private lastBallUpdate: number = 0;
   private readonly BALL_SYNC_INTERVAL: number = 0.05; // Sync every 50ms
+  private playerDisconnected: boolean = false;
 
   constructor() {
     this.networkManager = NetworkManager.Instance;
@@ -39,20 +40,8 @@ export class MultiplayerPlayState implements GameState {
     );
     this.networkManager.setGameStartCallback(this.handleGameStart.bind(this));
     this.networkManager.setBallSyncCallback(this.handleBallSync.bind(this));
-
-    // Calculate initial position based on window size
-    const initialY = window.innerHeight / 2;
-    const initialX = PADDLE_WIDTH - WALL_THICKNESS;
-    const rightSideX = window.innerWidth - PADDLE_WIDTH - WALL_THICKNESS;
-
-    // For player two, use the right side position
-    const secondPlayerX = rightSideX;
-    const firstPlayerX = initialX;
-
-    // Try to connect as player two first, if that fails we'll be player one
-    this.networkManager.connect({
-      x: secondPlayerX,
-      y: initialY,
+    this.networkManager.setPlayerDisconnectedCallback(() => {
+      this.addDisconnectMessage();
     });
 
     this.startLoop();
@@ -300,21 +289,71 @@ export class MultiplayerPlayState implements GameState {
       this.gameDI.ball.draw(context);
     }
 
+    // Display room ID if available
+    const roomId = this.networkManager.roomId;
+    if (roomId) {
+      context.fillStyle = "white";
+      context.font = "16px Arial";
+      context.textAlign = "left";
+      context.fillText(`Room: ${roomId}`, 20, 30);
+    }
+
     // Draw waiting message if game hasn't started
     if (!this.gameStarted) {
+      context.fillStyle = "rgba(0, 0, 0, 0.7)";
+      context.fillRect(0, 0, context.canvas.width, context.canvas.height);
+
+      context.fillStyle = "white";
+      context.font = "24px Arial";
+      context.textAlign = "center";
+
+      if (this.networkManager.roomId) {
+        context.fillText(
+          "Waiting for second player...",
+          context.canvas.width / 2,
+          context.canvas.height / 2 - 15
+        );
+        context.fillText(
+          `Share Room ID: ${this.networkManager.roomId}`,
+          context.canvas.width / 2,
+          context.canvas.height / 2 + 25
+        );
+      } else {
+        context.fillText(
+          "Connecting to server...",
+          context.canvas.width / 2,
+          context.canvas.height / 2
+        );
+      }
+    }
+
+    // Show player disconnected message
+    if (this.playerDisconnected) {
+      context.fillStyle = "rgba(0, 0, 0, 0.7)";
+      context.fillRect(0, 0, context.canvas.width, context.canvas.height);
+
       context.fillStyle = "white";
       context.font = "24px Arial";
       context.textAlign = "center";
       context.fillText(
-        "Waiting for second player...",
+        "Other player disconnected",
         context.canvas.width / 2,
-        context.canvas.height / 2
+        context.canvas.height / 2 - 15
+      );
+      context.fillText(
+        "Returning to lobby in 3 seconds...",
+        context.canvas.width / 2,
+        context.canvas.height / 2 + 25
       );
     }
   }
 
   handleInput(gameDI: GameDI, keyCode: string, pressed: boolean) {
-    // Input handling is done in update()
+    // Allow returning to lobby with Escape key
+    if (pressed && keyCode === "Escape") {
+      this.networkManager.disconnect();
+      gameDI.changeState(gameDI.lobbyState);
+    }
   }
 
   startLoop() {
@@ -335,5 +374,20 @@ export class MultiplayerPlayState implements GameState {
 
   stopLoop() {
     // Cleanup code here
+  }
+
+  // Add a message when the other player disconnects
+  private addDisconnectMessage() {
+    if (!this.gameDI) return;
+    // Player has disconnected, game will end soon
+    this.gameStarted = false;
+    this.playerDisconnected = true;
+
+    // Return to lobby after 3 seconds
+    setTimeout(() => {
+      if (this.gameDI) {
+        this.gameDI.changeState(this.gameDI.lobbyState);
+      }
+    }, 3000);
   }
 }
