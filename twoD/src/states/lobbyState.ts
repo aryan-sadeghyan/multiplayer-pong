@@ -1,14 +1,20 @@
 import { GameState, GameDI } from "./GameState";
-import { canvas } from "../main";
+import { canvas, PADDLE_WIDTH, WALL_THICKNESS } from "../main";
+import NetworkManager from "../networkManager";
+import V2 from "../v2";
 
 interface LobbyStateI extends GameState {
-  enter(gameDI?: GameDI): void;
+  enter(gameDI: GameDI): void;
   exit(gameDI?: GameDI): void;
   update(...args: any[]): void;
   render(...args: any[]): void;
   handleInput(gameDI: GameDI, keyCode: string, pressed: boolean): void;
   startLoop(gameDI: GameDI): void;
   stopLoop(): void;
+  createRoom(): void;
+  joinRoom(): void;
+  goBackToMenu(): void;
+  initializeButtons(): void;
 }
 
 interface Button {
@@ -24,8 +30,8 @@ export default class LobbyState implements LobbyStateI {
   private animationFrameId: number | null = null;
   private buttons: Button[] = [];
   private messages: string[] = [];
-  private gameDI: GameDI | null = null;
   private clickHandler: ((e: MouseEvent) => void) | null = null;
+  private gameDI: GameDI | null = null;
 
   enter(gameDI: GameDI): void {
     console.log("Entering Lobby State");
@@ -54,6 +60,7 @@ export default class LobbyState implements LobbyStateI {
     }
 
     this.stopLoop();
+    this.gameDI = null;
   }
 
   initializeButtons(): void {
@@ -112,8 +119,16 @@ export default class LobbyState implements LobbyStateI {
   }
 
   createRoom(): void {
-    const roomId = Math.floor(100000 + Math.random() * 900000); // 6-digit room ID
-    this.addMessage(`Room created! Room ID: ${roomId}`);
+    // Calculate initial position for the paddle
+    const initialX = PADDLE_WIDTH - WALL_THICKNESS;
+    const initialY = window.innerHeight / 2;
+
+    // Connect to server with initial position
+    NetworkManager.Instance.connect({ x: initialX, y: initialY });
+
+    if (this.gameDI) {
+      this.gameDI.changeState(this.gameDI.multiplayerPlayState);
+    }
   }
 
   joinRoom(): void {

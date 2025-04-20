@@ -7,6 +7,7 @@ import { PlayState } from "./states/PlayState";
 import { PauseState } from "./states/PauseState";
 import { GameOverState } from "./states/GameOverState";
 import LobbyState from "./states/lobbyState";
+import { MultiplayerPlayState } from "./states/MultiplayerPlayState";
 
 // Canvas setup
 export const canvas = document.getElementById("main") as HTMLCanvasElement;
@@ -31,11 +32,14 @@ export class Game implements GameDI {
   ball: Ball = new Ball();
   player_one: Player = new Player(
     "player1",
-    new V2(50, window.innerHeight / 2)
+    new V2(PADDLE_WIDTH - WALL_THICKNESS, window.innerHeight / 2)
   );
   player_two: Player = new Player(
     "player2",
-    new V2(window.innerWidth - 50, window.innerHeight / 2)
+    new V2(
+      window.innerWidth - PADDLE_WIDTH - WALL_THICKNESS,
+      window.innerHeight / 2
+    )
   );
   pressedKeys: Set<string> = new Set();
 
@@ -47,6 +51,8 @@ export class Game implements GameDI {
   gameOverState: GameOverState;
   lobbyState: LobbyState;
 
+  multiplayerPlayState: MultiplayerPlayState;
+
   constructor() {
     // Initialize game objects
 
@@ -56,7 +62,7 @@ export class Game implements GameDI {
     this.pauseState = new PauseState();
     this.gameOverState = new GameOverState();
     this.lobbyState = new LobbyState();
-    // Set up input handlers
+    this.multiplayerPlayState = new MultiplayerPlayState();
 
     // Set initial state and start it
     this.currentState = this.menuState;

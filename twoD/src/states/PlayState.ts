@@ -16,7 +16,7 @@ export class PlayState implements GameState {
     this.startLoop(gameDI);
   }
 
-  exit(gameDI: GameDI): void {
+  exit(): void {
     console.log("Exited play state");
     // Stop the animation loop
     this.stopLoop();

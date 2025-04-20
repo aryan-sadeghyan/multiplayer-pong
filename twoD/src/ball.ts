@@ -21,11 +21,11 @@ export default class Ball implements BallI {
     this.pos = new V2(window.innerWidth / 2, window.innerHeight / 2);
   }
 
-  getPosition(): V2 {
+  get position(): V2 {
     return this.pos;
   }
 
-  setPosition(pos: V2) {
+  set position(pos: V2) {
     this.pos = pos;
   }
 

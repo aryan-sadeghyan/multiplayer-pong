@@ -10,5 +10,10 @@
   <body>
     <canvas id="main"></canvas>
     <script type="module" src="/src/main.ts"></script>
+    <script type="module">
+      import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+
+      const socket = io();
+    </script>
   </body>
 </html>

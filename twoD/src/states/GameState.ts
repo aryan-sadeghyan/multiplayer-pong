@@ -15,6 +15,7 @@ export interface GameDI {
   pauseState: GameState;
   gameOverState: GameState;
   lobbyState: GameState;
+  multiplayerPlayState: GameState;
 
   // Methods
   changeState(newState: GameState): void;
